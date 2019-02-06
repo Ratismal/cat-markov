@@ -1,6 +1,6 @@
 {
   "name": "cat-markov",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A library to generate markov chains.",
   "main": "dist/index.js",
   "types": "dist/index.d.js",
