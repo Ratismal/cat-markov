@@ -59,7 +59,7 @@ export class MarkovKey {
       const ass: MarkovAssociation = new MarkovAssociation(key);
       this.parents.set(ass.key, ass);
     }
-    this.weightSum++;
+    this.parentWeightSum++;
   }
 
   next(): MarkovKey {
