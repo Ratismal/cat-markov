@@ -1,7 +1,7 @@
 {
   "compileOnSave": false,
   "compilerOptions": {
-    // "declaration": true,
+    "declaration": true,
     "moduleResolution": "node",
     "module": "commonjs",
     "outDir": "./dist",
@@ -21,7 +21,7 @@
     "sourceMap": true,
     "skipLibCheck": true,
     "disableSizeLimit": true,
-    "allowJs": true,
+    // "allowJs": true,
     "experimentalDecorators": true,
     "resolveJsonModule": true
   },
