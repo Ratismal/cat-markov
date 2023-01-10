@@ -1,3 +1,5 @@
+import * as gaussian from 'gaussian';
+
 export enum SpecialKey {
   NORMAL_KEY = 1,
   START_KEY = 2,
@@ -17,6 +19,35 @@ export class MarkovAssociation {
   }
 }
 
+export class MarkovKeyCurve {
+  private minLinks: number = 0;
+  private maxLinks: number = 0;
+  private deviation: number;
+  private mean: number;
+  private variance: number;
+
+  public gaussian: gaussian.Gaussian;
+
+  constructor(links: Map<string | SpecialKey, MarkovAssociation>, sum: number) {
+    this.mean = sum / links.size;
+    
+    for (var link of links.values()) {
+      if (this.minLinks === 0 || link.associations < this.minLinks) {
+        this.minLinks = link.associations;
+      }
+
+      if (link.associations > this.maxLinks) {
+        this.maxLinks = link.associations;
+      }
+    }
+
+    this.deviation = this.maxLinks - this.minLinks;
+    this.variance = Math.max(1, Math.pow(this.deviation, 2));
+
+    this.gaussian = gaussian(this.mean, this.variance);
+  }
+}
+
 export class MarkovKey {
   public key: string | SpecialKey;
   public links: Map<string | SpecialKey, MarkovAssociation>;
@@ -24,6 +55,9 @@ export class MarkovKey {
   public output: string[];
   private weightSum: number;
   private parentWeightSum: number;
+
+  public curve: MarkovKeyCurve;
+  public parentCurve: MarkovKeyCurve;
 
   constructor(key: string | SpecialKey) {
     this.links = new Map<string, MarkovAssociation>();
@@ -44,6 +78,15 @@ export class MarkovKey {
     return key.replace(/[^a-z\d]/g, '');
   }
 
+  refresh() {
+    try {
+      this.curve = new MarkovKeyCurve(this.links, this.weightSum);
+      this.parentCurve = new MarkovKeyCurve(this.parents, this.parentWeightSum);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
   addLink(key: MarkovKey) {
     if (this.links.has(key.key)) this.links.get(key.key).associations++;
     else {
@@ -51,6 +94,8 @@ export class MarkovKey {
       this.links.set(ass.key, ass);
     }
     this.weightSum++;
+
+    this.refresh();
   }
 
   addParent(key: MarkovKey) {
@@ -60,6 +105,8 @@ export class MarkovKey {
       this.parents.set(ass.key, ass);
     }
     this.parentWeightSum++;
+
+    this.refresh();
   }
 
   next(): MarkovKey {
@@ -76,6 +123,29 @@ export class MarkovKey {
     return asses[Math.floor(Math.random() * asses.length)].keyRef;
   }
 
+  gausNext(): MarkovKey {
+    let sum: number = 0;
+
+    const pairs: [MarkovKey, number][] = [];
+    for (const ass of this.links.values()) {
+      const prob: number = this.curve.gaussian.cdf(ass.associations);
+      pairs.push([ass.keyRef, prob])
+      sum += prob;
+    }
+
+    const seed: number = Math.random() * sum;
+
+    let accu: number = 0;
+
+    for (const ass of pairs) {
+      accu += ass[1];
+
+      if (accu >= seed) {
+        return ass[0];
+      }
+    }
+  }
+
   prev(): MarkovKey {
     const seed: number = Math.floor(Math.random() * this.parentWeightSum);
     let accu: number = 0;
@@ -88,6 +158,29 @@ export class MarkovKey {
   randPrev(): MarkovKey {
     const asses = Array.from(this.parents.values());
     return asses[Math.floor(Math.random() * asses.length)].keyRef;
+  }
+
+  gausPrev(): MarkovKey {
+    let sum: number = 0;
+
+    const pairs: [MarkovKey, number][] = [];
+    for (const ass of this.parents.values()) {
+      const prob: number = this.parentCurve.gaussian.cdf(ass.associations);
+      pairs.push([ass.keyRef, prob])
+      sum += prob;
+    }
+
+    const seed: number = Math.random() * sum;
+
+    let accu: number = 0;
+
+    for (const ass of pairs) {
+      accu += ass[1];
+
+      if (accu >= seed) {
+        return ass[0];
+      }
+    }
   }
 
   toString(): string {
@@ -154,6 +247,25 @@ export default class Markov {
       do {
         keys.push(key);
         key = key.next();
+      } while (key.key !== SpecialKey.END_KEY);
+    } while (
+      ((minLimit && keys.length < minLimit) || (maxLimit && keys.length > maxLimit))
+      && (++tries <= 10)
+    );
+
+    return keys.filter(k => typeof k.key === 'string').map(k => k.toString());
+  }
+
+  public createGaus(minLimit?: number, maxLimit?: number): string[] {
+    let keys: MarkovKey[];
+
+    let tries: number = 0;
+    do {
+      keys = [];
+      let key: MarkovKey = this.startKey.gausNext();
+      do {
+        keys.push(key);
+        key = key.gausNext();
       } while (key.key !== SpecialKey.END_KEY);
     } while (
       ((minLimit && keys.length < minLimit) || (maxLimit && keys.length > maxLimit))
