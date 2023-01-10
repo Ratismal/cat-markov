@@ -118,18 +118,13 @@ export class MarkovKey {
     }
   }
 
-  randNext(): MarkovKey {
-    const asses = Array.from(this.links.values());
-    return asses[Math.floor(Math.random() * asses.length)].keyRef;
-  }
-
-  gausNext(): MarkovKey {
+  gaus(links: Map<string | SpecialKey, MarkovAssociation>, curve: MarkovKeyCurve): MarkovKey {
     let sum: number = 0;
 
     const pairs: [MarkovKey, number][] = [];
-    for (const ass of this.links.values()) {
-      const prob: number = this.curve.gaussian.cdf(ass.associations);
-      pairs.push([ass.keyRef, prob])
+    for (const ass of links.values()) {
+      const prob: number = curve.gaussian.cdf(ass.associations) * 100;
+      pairs.push([ass.keyRef, prob]);
       sum += prob;
     }
 
@@ -144,6 +139,15 @@ export class MarkovKey {
         return ass[0];
       }
     }
+  }
+
+  randNext(): MarkovKey {
+    const asses = Array.from(this.links.values());
+    return asses[Math.floor(Math.random() * asses.length)].keyRef;
+  }
+
+  gausNext(): MarkovKey {
+    return this.gaus(this.links, this.curve);
   }
 
   prev(): MarkovKey {
@@ -161,26 +165,7 @@ export class MarkovKey {
   }
 
   gausPrev(): MarkovKey {
-    let sum: number = 0;
-
-    const pairs: [MarkovKey, number][] = [];
-    for (const ass of this.parents.values()) {
-      const prob: number = this.parentCurve.gaussian.cdf(ass.associations);
-      pairs.push([ass.keyRef, prob])
-      sum += prob;
-    }
-
-    const seed: number = Math.random() * sum;
-
-    let accu: number = 0;
-
-    for (const ass of pairs) {
-      accu += ass[1];
-
-      if (accu >= seed) {
-        return ass[0];
-      }
-    }
+    return this.gaus(this.parents, this.parentCurve);
   }
 
   toString(): string {
